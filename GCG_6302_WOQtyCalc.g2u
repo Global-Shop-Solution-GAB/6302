@@ -1,0 +1,62 @@
+﻿Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Sub_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.sSQL.Declare(String)
+v.Local.iRun.Declare(Float)
+v.Local.iOrderQty.Declare(Float)
+v.Local.spartrev.Declare(String)
+v.Local.sret.Declare(String)
+v.Local.bCheck.Declare(Boolean)
+
+'when using GEN WO from SO Lines, this will divide run quantity passed by router user 1 value if numeric and set run qty = to that. 
+'this is because the sell COGS orders with no inventory parts per SF and build Eaches in production for their signs. 
+'coded by SFF for Rocal (Mike Spellman consultant requested)
+'Modified to RK 4/34/2023 to allow the Order to Remain in SF if the User chooses and removed the Popup indicating no Value in Sort 1 Field and to check if the WO is tied to a SF Order Line and to only update if Qty doesn't match
+
+f.Intrinsic.Control.If(v.Caller.Hook,=,16630)
+	V.Passed.000091.Set("WO Upload")
+
+	f.Intrinsic.String.GSSPartString(v.Passed.000006.trim,v.Passed.000007.trim,v.Local.spartrev)
+	F.Intrinsic.Control.If(V.Local.spartrev.Trim,<>,"")
+		'checking if tied to Sales Order Line
+		F.Intrinsic.Control.If(V.Passed.Order-No.Trim,<>,"")
+			'If customer wants to convert WO to EA a value will be in the Sort 1 field to divide the SF by that value to get the EA qty IF not the Qty will remain in SF
+			'this is being done since these are COG Work Orders and will not be hitting Inventory
+			f.Intrinsic.string.Build("select SORT_1 from v_ROUTER_HEADER where ROUTER = '{0}'",v.Local.spartrev.Trim,v.Local.sSQL)
+			f.ODBC.Connection!conx.openconnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass,72000)
+			f.ODBC.Connection!conx.executeandreturn(v.Local.sSQL,v.Local.sret)
+			f.Intrinsic.Control.If(v.Local.sret.Trim,<>,"")
+				f.Intrinsic.Math.IsNumeric(v.Local.sret.Trim,v.Local.bcheck)
+				f.Intrinsic.Control.If(v.Local.bCheck,=,True)
+					'Getting Qty Order only if SF is the UM
+					F.Intrinsic.String.Build("select Qty_Ordered from V_ORDER_LINES Where Order_NO = '{0}' and Record_No = '{1}' and UM_Order = 'SF'",V.Passed.Order-No.Trim,V.Passed.Order-Line.Trim,V.Local.sSQL)
+					f.ODBC.Connection!conx.executeandreturn(v.Local.sSQL,v.Local.sret)
+					F.Intrinsic.Control.If(V.Local.sret.Trim,<>,"","AND",V.Local.sret.Long,<>,V.Passed.000043)
+						f.Intrinsic.Math.Div(v.Passed.000043,v.Local.sret.Float,v.Local.iRun)
+						v.Passed.000043.Set(v.Local.iRun)
+						v.Passed.000044.Set(v.Local.iRun)
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.EndIf
+			f.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Sub_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: Project",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Comments.Start
+${$5$}$2.0.0.0$}$2
+${$6$}$rking$}$20230424103332208$}$QNdZLVy4bWuiWa9jh1ZTiKHvMPldSPXeb57GYWVxueIPaLzaaAB0bA3+QyIiL5KSdqlNUBD+74U=
+Program.Sub.Comments.End
