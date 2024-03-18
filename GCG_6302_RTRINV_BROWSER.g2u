@@ -1,0 +1,87 @@
+﻿Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Sub_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+'SFF
+'coded for Rocal custom OE/SFC based on requirements from Mike Spellman
+'this will launch browser to select router# because they sell in SF and produce in EA for COGS orders so there is no inventory parts for these. standard browser for part is still usable in SO Line entry.
+
+V.Local.sRet.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sTitles.Declare(String)
+V.Local.sWidths.Declare(String)
+V.Local.sPart.Declare(String)
+V.Local.sRev.Declare(String)
+V.Local.sPartRev.Declare(String)
+v.Local.sGSSPart.Declare(string)
+
+'custom browser to union select from inventory and router master. added a TYPE column to know if its inventory or router master. 
+V.Local.scc.Declare(String)
+
+f.Intrinsic.Control.If(v.Caller.Hook,=,12420)
+	'launch broswer for router
+'	F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+	F.ODBC.Connection!con.OpenCompanyConnection(999)
+	F.Intrinsic.String.Split("PartNumber*!*iType*!*Description*!*Inventory UM*!*Prod Line","*!*",V.Local.sTitles)
+	F.Intrinsic.String.Split("2000*!*500*!*2000*!*500*!*500","*!*",V.Local.sWidths)
+	F.Intrinsic.UI.SetBrowserHotTypeAhead(True)
+	F.Intrinsic.String.Concat("select distinct part, 'I' as pType, description,UM_INVENTORY,PRODUCT_LINE as PL from v_inventory_mstr union select distinct router as part, 'R' as pType, description_router as description,UM_INVENTORY,PROD_LINE as PL from v_router_header order by part","",V.Local.sSQL)
+	F.Intrinsic.UI.Browser("Select a Inventory Part","con",V.Local.sSQL,V.Local.sTitles,V.Local.sWidths,15000,10000,V.Local.sRet)
+	F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+	
+	f.Intrinsic.Control.If(v.Local.sRet,<>,"***CANCEL***")
+		'prod line 000013
+		'52 part 53 rev
+		'56 description
+		'000006 UoM
+		f.Intrinsic.String.Left(v.Local.sRet(0),17,v.Local.sPart)
+		f.Intrinsic.String.Mid(v.Local.sRet(0),18,3,v.Local.sRev)
+		v.Passed.000056.Set(v.Local.sRet(2).trim)
+		'routers are in ea and storing vsariable in user 1 for other script on gen wo hook always set SO line to SF
+		v.Passed.000006.Set("SF")
+		v.Passed.000013.Set(v.Local.sRet(4).trim)
+		v.Passed.000052.Set(v.Local.sPart.Trim)
+		v.Passed.000053.Set(v.Local.sRev.Trim)
+	
+	
+	F.Intrinsic.Control.EndIf
+	
+	f.ODBC.Connection!con.Close
+		
+	F.Intrinsic.Control.End
+		
+f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,12010)
+	'populate
+	v.Passed.000141.set("Select Router")
+	F.Intrinsic.Control.End
+	
+f.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Sub_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_6302_RTRINV_BROWSER.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf	
+
+
+Program.Sub.Main.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_GSS_PART_BROWSER$}$ERIC$}$3/10/2012
+${$5$}$2.0.0.0$}$2
+${$6$}$rking$}$20230515145820757$}$QNdZLVy4bWuiWa9jh1ZTiKHvMPldSPXeojC84T+YgOryxNo4PTh97/DuFFYQFH1LpoBINahJpuk=
+Program.Sub.Comments.End
+
