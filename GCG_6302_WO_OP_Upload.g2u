@@ -1,0 +1,676 @@
+﻿Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Variable.Global.ufilename.Declare(String)
+v.global.sJobpartloc.Declare(String)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+
+V.Local.sError.Declare(String)
+V.Local.sjob.Declare(String)
+V.Local.ssuffix.Declare(String)
+V.Local.sfilename.Declare(String)
+
+'This is a custom program that will read an .xlsx file and upload the Work Order information stored within the file to Global Shop. The program will also inform the user if specific data does not meet the criteria needed for the upload.
+
+'open connection
+F.ODBC.Connection!conx.OpenCompanyConnection(999)
+
+'on the work order header screen change the script 1 button text to 'WO Upload'
+'F.Intrinsic.Control.if(V.Caller.Hook,=,16630)
+'	V.Passed.000091.Set("WO Upload")
+'F.Intrinsic.Control.EndIf
+	'if the script1 button is selected
+F.Intrinsic.Control.If(V.Caller.Hook,=,16670)
+'		set the job and suffix
+	V.local.sjob.set(V.Passed.000003)
+	V.Local.ssuffix.Set(V.Passed.000004)
+	v.Global.sJobpartloc.Set(v.Passed.000015)
+'		check to make sure the job is not blank
+	F.Intrinsic.control.If(V.Local.sjob,=,"")
+		F.Intrinsic.UI.Msgbox("Work Order is blank, please select a work order.")
+		F.Intrinsic.Control.CallSub(Unload)
+	F.Intrinsic.Control.EndIf
+
+'open a file explorer and look for an xlsx sheet
+F.Intrinsic.UI.ShowOpenFileDialog("",".xlsx",V.global.ufilename)
+'if no file was selected inform the user and end the program
+F.Intrinsic.Control.If(V.global.ufilename,=,"***CANCEL***")
+	F.Intrinsic.UI.Msgbox("No File Was Selected")
+	F.Intrinsic.Control.callsub(Unload)
+F.Intrinsic.Control.EndIf
+
+'call the upload sub
+F.Intrinsic.Control.CallSub(Upload)
+
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_6302_WO_OP_Upload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+'close connection to the database
+F.ODBC.Connection!conx.Close
+
+F.Intrinsic.Control.If(V.global.ufilename,=,"***CANCEL***")
+	F.Intrinsic.Control.End
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Else
+	F.Automation.MSExcel.DestroyAllObjects("MSExcel","Guide Tree","Guide Sheet")
+F.Intrinsic.Control.EndIf
+
+'end the program
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_6302_WO_OP_Upload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Unload.End
+
+Program.Sub.Upload.Start
+F.Intrinsic.Control.SetErrorHandler("Upload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.ssql.Declare(String)
+V.Local.sjob.Declare(String)
+V.Local.ssuffix.Declare(String)
+V.Local.srow.Declare(String)
+V.Local.irow.Declare(Long)
+V.Local.iret.Declare(Long)
+V.Local.iworksheetcounter.Declare(Long)
+V.Local.iloopcount.Declare(Long)
+V.Local.slmo.Declare(String)
+V.Local.swc.Declare(String)
+V.Local.finc.Declare(Float)
+V.Local.sinc.Declare(String)
+V.Local.sopcode.Declare(String)
+V.Local.sdesc.Declare(String)
+V.Local.sum.Declare(String)
+V.Local.funits.Declare(Float)
+V.Local.srate.Declare(String)
+V.Local.ssort.Declare(String)
+V.Local.srev.Declare(String)
+V.Local.sgroup.Declare(String)
+V.Local.serrortextline.Declare(String)
+V.Local.serrortextfinal.Declare(String)
+V.Local.spart.Declare(String)
+V.local.ssql2.declare(String)
+V.Local.iworksheetcounter.Set(1)
+V.Local.bpass.Declare(Boolean)
+V.Local.irow2.Declare(Long)
+V.Local.serroruploadfilepath.Declare(String)
+V.Local.bexists.Declare(Boolean)
+V.Local.sfilename.Declare(String)
+V.Local.sseq.Declare(Float)
+V.Local.ssql3.Declare(String)
+V.Local.sseq2.Declare(String)
+V.Local.sduedate.Declare(String)
+V.Local.dduedate.Declare(Date)
+V.Local.ssetup.Declare(Float)
+V.Local.slead.Declare(Float)
+V.Local.swcsql.Declare(String)
+V.Local.swcprototype.Declare(String)
+V.Local.bdesc.Declare(Boolean)
+V.Local.ilen.Declare(Long)
+V.Local.flen.Declare(Float)
+V.Local.idescloop.Declare(Long)
+V.Local.snewdesc.Declare(String)
+V.Local.ibetween.Declare(Long)
+V.Local.ibetween2.Declare(Long)
+V.Local.sworkgroupsql.Declare(String)
+V.Local.ilen2.Declare(Long)
+V.Local.imultiply.Declare(Long,0)
+V.Local.sSplitDesc.Declare(String)
+V.Local.sTemp.Declare(String)
+V.Local.fHrsEst.Declare(Float)
+V.Local.fWOQty.Declare(Float)
+V.Local.sRet.Declare(String)
+v.Local.sPriorSeq.Declare(String)
+V.Local.sUnits.Declare(String)
+V.Local.fTemp.Declare(Float)
+
+'build the error file path
+F.Intrinsic.String.Build("{0}\Upload Errors",V.caller.filesdir,V.Local.serroruploadfilepath)
+
+F.Intrinsic.File.Exists(V.Local.serroruploadfilepath,V.Local.bexists)
+F.Intrinsic.control.If(V.Local.bexists,=,"false")
+	F.Intrinsic.File.CreateDir(V.Local.serroruploadfilepath)
+F.Intrinsic.Control.EndIf
+
+V.Local.bpass.Set(True)
+
+'set the job and suffix
+V.local.sjob.set(V.Passed.000003)
+V.Local.ssuffix.Set(V.Passed.000004)
+V.Local.fWOQty.Set(V.Passed.000043)
+
+F.Intrinsic.String.Build("Select Top 1 Seq from V_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and SEQ < '995000' and LMO = 'M'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,V.Local.ssql)
+F.ODBC.Connection!Conx.ExecuteAndReturn(V.Local.ssql,V.Local.sRet)
+
+F.Intrinsic.Control.If(V.Local.sret.Trim,<>,"")
+	F.Intrinsic.UI.Msgbox("Material Lines have already been uploaded.  Changes to Work Order will need to be done on the Scheduling Screen.")
+	F.Intrinsic.Control.CallSub(Unload)
+F.Intrinsic.Control.EndIf
+
+'display wait dialog
+F.Intrinsic.UI.InvokeWaitDialog("Processing........","Please Wait")
+
+'prepare the excel sheet to be read
+F.Automation.MSExcel.CreateAppObject("MSExcel")
+F.Automation.MSExcel.OpenWorkbook("MSEXcel","Guide Tree",V.Global.ufilename)
+F.Automation.MSExcel.OpenWorksheet("Guide Tree","Guide Sheet",V.Local.iworksheetcounter)
+
+'get the rows of the current spreadsheet
+F.Automation.MSExcel.RowCount("Guide Sheet",V.Local.iret)
+
+'get the sequence incrementation from their company options and set a local variable
+F.Intrinsic.String.Build("select F_LONG from V_OP_HEADER where ID = '{0}'","401113",V.Local.sinc)
+F.ODBC.Connection!conx.OpenRecordsetRO("rst",V.Local.sinc)
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+	V.Local.finc.Set(V.ODBC.conx!rst.FieldValTrim!F_LONG)
+F.Intrinsic.Control.EndIf
+F.ODBC.Conx!rst.Close
+
+''loop through the rows of the spreadsheet again and begin appending to job operations
+F.Intrinsic.Control.For(V.Local.irow2,2,V.Local.iret,1)
+	'reads the sequence cell within the excel spreadsheet
+	F.Automation.MSExcel.ReadRow("Guide Sheet",V.Local.irow2,1,12,V.local.srow)
+	'set the local variables from the excel spreadsheet
+	F.Intrinsic.String.Split(V.Local.srow,"*!*",V.Local.srow)
+	
+	'Only uploadin it first column is M
+	F.Intrinsic.Control.If(V.Local.srow(0).Trim,=,"M")
+		V.Local.slmo.Set(V.Local.srow(0).Trim)
+		V.Local.swc.Set(V.Local.srow(1))
+		V.Local.srev.set(V.Local.srow(2))
+		'put the part and rev together
+		F.Intrinsic.string.GSSPartString(V.Local.swc,V.Local.srev,V.Local.spart)
+		V.Local.sopcode.Set(V.Local.srow(3))
+		V.Local.sdesc.Set(V.Local.srow(4))
+		
+		'if description is blank get the description from inventory master based on the part
+		'if for a part get part desc
+		F.Intrinsic.Control.If(V.Local.sdesc.Trim,=,"")
+		F.Intrinsic.Control.AndIf(V.Local.srow(0),=,"M")
+			'get the description for the part
+			F.Intrinsic.String.Build("Select DESCRIPTION from V_INVENTORY_MSTR where PART = '{0}' AND LOCATION = '{1}'",V.local.spart,V.Global.sJobpartloc,V.Local.ssql2)
+			F.ODBC.Connection!conx.OpenRecordsetRO("rst2",V.Local.sSQL2)
+			
+			F.Intrinsic.Control.If(V.ODBC.conx!rst2.EOF,=,False)
+		'	'set the description
+				V.Local.sdesc.Set(V.ODBC.conx!rst2.FieldValTrim!DESCRIPTION)
+			F.Intrinsic.Control.EndIf
+			
+			'close the second connection
+			F.ODBC.Conx!rst2.Close
+		
+		'check to see if description is longer than 30 characters
+		F.Intrinsic.Control.ElseIf(V.Local.sdesc.Trim,<>,"")
+			F.Intrinsic.String.Len(V.Local.sdesc.Trim,V.Local.ilen)
+			
+			'set the desc boolean to true
+			F.Intrinsic.control.If(V.Local.ilen,>,30)
+				V.Local.bdesc.Set(True)
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+		
+		V.Local.sum.Set(V.Local.srow(5))
+		V.Local.funits.Set(V.Local.srow(6))
+		V.Local.srate.Set(V.local.srow(7))
+		
+		'if the rate is blank get the data based on part or non-part
+		F.Intrinsic.Control.If(V.Local.srate.Trim,=,"")
+		F.Intrinsic.Control.AndIf(V.Local.srow(0),=,"M")
+			'get the cost for the part
+			'F.Intrinsic.String.Build("Select AMT_COST from V_INVENTORY_MSTR where PART = '{0}'",V.local.spart,V.Local.sSQL2)
+			F.Intrinsic.String.Build("Select COST from V_INVENTORY_COST where PART = '{0}' AND LOCN = '{1}'",V.local.spart,V.Global.sJobpartloc,V.Local.sSQL2)
+			F.ODBC.Connection!conx.OpenRecordsetRO("rst2",V.Local.sSQL2)
+			F.Intrinsic.Control.If(V.ODBC.conx!rst2.EOF,=,False)
+			'	'set the description
+				V.Local.srate.Set(V.ODBC.conx!rst2.FieldValTrim!COST)
+			F.Intrinsic.Control.EndIf
+		
+			'close the second connection
+			F.ODBC.Conx!rst2.Close
+
+		F.Intrinsic.Control.EndIf
+	
+		V.Local.ssort.Set(V.Local.srow(8))
+		V.Local.sgroup.set(V.Local.srow(9))
+		V.Local.ssetup.Set(V.Local.srow(10))
+		V.Local.slead.Set(V.local.srow(11))
+
+		'check to see if the description is longer than 30 characters, if so upload first line then others as comments
+		F.Intrinsic.Control.If(V.Local.bdesc,=,True)
+			v.Local.sSplitDesc.Redim(0,0)
+			F.Intrinsic.String.LimitSplit(V.Local.sdesc,30,V.Local.sSplitDesc)
+			
+			'loop through the count importing comment lines
+			F.Intrinsic.Control.For(V.Local.idescloop,0,1,1)
+				F.Intrinsic.String.Build("Select * from JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and SEQ < '{2}'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,"990000",V.Local.sSQL2)
+					F.ODBC.Connection!conx.OpenRecordsetRW("rst2",V.Local.sSQL2)
+					
+					'if there is a job/suffix found append to it
+					F.Intrinsic.Control.If(V.ODBC.conx!rst2.EOF,=,False)
+					
+						F.Intrinsic.Control.If(V.Local.sopcode.IsNumeric)
+							F.Intrinsic.Math.Sub(V.Local.sopcode.Long,V.Local.finc,V.Local.sPriorSeq)
+							F.Intrinsic.String.Format(V.Local.sPriorSeq,"000000",V.Local.sPriorSeq)
+							F.Intrinsic.String.Format(V.Local.sopcode,"000000",V.Local.sopcode)	
+							F.Intrinsic.String.Build("Select Top 1 Seq from V_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and Cast(SEQ as Int) < {2} and Cast(SEQ as Int) > {3} Order by Seq",V.Local.sjob.Trim,V.Local.ssuffix.Trim,V.Local.sopcode.Long,V.Local.sPriorSeq.Long,V.Local.ssql)
+							F.ODBC.Connection!Conx.ExecuteAndReturn(V.Local.ssql,V.Local.sRet)
+							F.Intrinsic.Control.If(V.Local.sRet.Trim,=,"")
+								F.Intrinsic.Math.Sub(V.Local.sopcode.Long,1,V.Local.sseq)
+							F.Intrinsic.Control.Else
+								F.Intrinsic.Math.Sub(V.Local.sRet.Long,1,V.Local.sseq)
+							F.Intrinsic.Control.EndIf
+						F.Intrinsic.Control.Else
+							'get the last seq number to add to
+							F.Intrinsic.String.Build("Select MAX(SEQ) as SEQ from V_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and SEQ < '{2}' and LMO <> '{3}' and MAIN_COMMENT <> '{4}'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,"990000","C","Y",V.Local.ssql)
+							F.ODBC.Connection!conx.OpenRecordsetRO("rst",V.Local.sSQL)
+							
+							F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+								V.Local.sseq.set(V.ODBC.conx!rst.FieldValTrim!SEQ)
+							F.Intrinsic.Control.Else
+								V.Local.sseq.Set("0")
+							F.Intrinsic.Control.EndIf
+							F.ODBC.conx!rst.Close
+							F.Intrinsic.Math.Add(V.Local.sseq,V.Local.finc,V.Local.sseq)
+							F.Intrinsic.Math.Div(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+							F.Intrinsic.Math.Ceiling(V.Local.sseq.Float,V.Local.sseq)
+							F.Intrinsic.Math.Mult(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+						F.Intrinsic.Control.EndIf
+						
+						'add the increment for the sequence
+						F.Intrinsic.Control.If(V.Local.idescloop,=,0)
+							F.Intrinsic.Control.If(V.Local.slmo,=,"M")
+								F.ODBC.conx!rst2.AddNew
+								F.ODBC.conx!rst2.Set!JOB(V.local.sjob.Trim)
+								F.ODBC.conx!rst2.Set!SUFFIX(V.local.ssuffix.Trim)
+								
+								V.Local.sseq2.Set(V.Local.sseq)							
+								F.Intrinsic.String.Format(V.Local.sseq2,"000000",V.Local.sseq2)
+								F.ODBC.conx!rst2.Set!SEQ(V.Local.sseq2)
+								F.ODBC.conx!rst2.Set!LMO(V.Local.slmo)
+							
+							
+								F.ODBC.conx!rst2.Set!PART(V.Local.spart)
+								V.Local.fHrsEst.Set(V.Local.funits)
+'								F.Intrinsic.Math.Sub(V.Local.funits,V.Local.ssetup.Float,V.Local.funits)
+								F.Intrinsic.Control.If(V.Local.fWOQty,>,0)
+									F.Intrinsic.Math.Div(V.Local.funits,V.Local.fWOQty,V.Local.funits)
+								F.Intrinsic.Control.EndIf
+								F.Intrinsic.Math.Round(V.Local.funits.Float,4,V.Local.funits)
+								F.Intrinsic.String.Format(V.Local.funits,"###0.0000",V.Local.sUnits)
+								F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+								F.Intrinsic.Control.If(V.Local.fTemp,>,V.Local.fHrsEst)
+									F.Intrinsic.Math.Sub(V.Local.sUnits.Float,.0001,V.Local.sUnits)
+									F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+''									F.Intrinsic.String.Format(V.Local.fTemp,"###0.0000",V.Local.fTemp)
+									F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+									F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+								F.Intrinsic.Control.Else
+'									F.Intrinsic.String.Format(V.Local.fTemp,"###0.0000",V.Local.fTemp)
+									F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+									F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+								F.Intrinsic.Control.EndIf
+								'append the values from those found in the excel spreadsheet to the job_operations table
+								F.ODBC.conx!rst2.Set!OPERATION(V.Local.sopcode)
+								F.ODBC.conx!rst2.Set!DESCRIPTION(V.Local.sSplitDesc(0))
+								F.ODBC.conx!rst2.Set!UNITS(V.Local.sUnits)
+								F.ODBC.conx!rst2.Set!HOURS_ESTIMATED(V.Local.fHrsEst)
+								F.ODBC.conx!rst2.Set!TIME_ELAPSED(V.Local.fHrsEst)
+								F.ODBC.conx!rst2.Set!SETUP(V.Local.ssetup)
+								F.ODBC.conx!rst2.Set!LEAD_TIME(V.Local.slead)
+								F.ODBC.conx!rst2.Set!UM(V.Local.sum)
+								'set the burden as the srate which is already determined based on LMO type
+								F.ODBC.conx!rst2.set!BURDEN(V.local.srate.Float)
+								'set the code sort oper as the sort code
+								F.ODBC.conx!rst2.Set!CODE_SORT_OPER(V.Local.ssort)
+								F.ODBC.conx!rst2.Set!PROJ_GROUP(V.Local.sgroup)
+								F.ODBC.conx!rst2.Set!WO_INSERT("00")
+								F.ODBC.conx!rst2.Set!UNITS_COMPLETE("0")
+								F.ODBC.conx!rst2.Set!PERCENT_COMPLETE("0")
+								F.ODBC.conx!rst2.Set!UNITS_SCRAP("0")
+								F.ODBC.conx!rst2.Set!UNITS_COMMITTED("0")
+								F.ODBC.conx!rst2.Set!RATE_BURDEN("0")
+								F.ODBC.conx!rst2.Set!HOURS_ACTUAL("0")
+								F.ODBC.conx!rst2.Update
+
+							F.Intrinsic.Control.EndIf
+							
+						F.Intrinsic.Control.Else							
+							'remove the first 30 characters and recombine array
+							F.Intrinsic.Variable.PopArray(V.Local.sSplitDesc,V.Local.sSplitDesc)
+							F.Intrinsic.String.Join(V.Local.sSplitDesc,V.Ambient.NewLine,V.Local.sdesc)
+'							V.Local.sseq2.Set(V.Local.sSeq)
+							F.Intrinsic.String.Format(V.Local.sseq2,"000000",V.Local.sseq2) 
+							F.Intrinsic.String.Build("INSERT INTO WO_SEQ_COMMENTS VALUES ('{0}','{1}','{2}','{3}')",V.Local.sjob,V.Local.ssuffix,V.Local.sseq2,V.Local.sdesc.PSQLFriendly,V.Local.ssql)
+							F.ODBC.connection!conx.Execute(V.Local.sSQL)
+						F.Intrinsic.Control.EndIf						
+					'if there is no job/suffix that match do nothing as we are only appending
+					F.Intrinsic.Control.Else
+						F.Intrinsic.Control.If(V.Local.sopcode.IsNumeric)
+							F.Intrinsic.Math.Sub(V.Local.sopcode.Long,1,V.Local.sseq)
+							F.Intrinsic.String.Format(V.Local.sopcode,"000000",V.Local.sopcode)
+						F.Intrinsic.Control.Else
+							'get the last seq number to add to
+							F.Intrinsic.String.Build("Select MAX(SEQ) as SEQ from V_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and SEQ < '{2}' and LMO <> '{3}' and MAIN_COMMENT <> '{4}'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,"990000","C","Y",V.Local.ssql)
+							F.ODBC.Connection!conx.OpenRecordsetRO("rst",V.Local.sSQL)
+							
+							F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+								V.Local.sseq.set(V.ODBC.conx!rst.FieldValTrim!SEQ)
+							F.Intrinsic.Control.Else
+								V.Local.sseq.Set("0")
+							F.Intrinsic.Control.EndIf
+							
+							F.ODBC.conx!rst.Close
+							F.Intrinsic.Math.Add(V.Local.sseq,V.Local.finc,V.Local.sseq)
+							F.Intrinsic.Math.Div(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+							F.Intrinsic.Math.Ceiling(V.Local.sseq.Float,V.Local.sseq)
+							F.Intrinsic.Math.Mult(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+						F.Intrinsic.Control.EndIf
+						
+						'add the increment for the sequence
+						F.Intrinsic.Control.If(V.Local.idescloop,=,0)
+							F.Intrinsic.Control.If(V.Local.slmo,=,"M")
+								F.ODBC.conx!rst2.AddNew
+								F.ODBC.conx!rst2.Set!JOB(V.local.sjob.Trim)
+								F.ODBC.conx!rst2.Set!SUFFIX(V.local.ssuffix.Trim)
+								
+								V.Local.sseq2.Set(V.Local.sseq)
+								F.Intrinsic.String.Format(V.Local.sseq2,"000000",V.Local.sseq2)
+								F.ODBC.conx!rst2.Set!SEQ(V.Local.sseq2)
+								F.ODBC.conx!rst2.Set!LMO(V.Local.slmo)
+							
+								F.ODBC.conx!rst2.Set!PART(V.Local.spart)
+								V.Local.fHrsEst.Set(V.Local.funits)
+'								F.Intrinsic.Math.Sub(V.Local.funits,V.Local.ssetup.Float,V.Local.funits)
+								F.Intrinsic.Control.If(V.Local.fWOQty,>,0)
+									F.Intrinsic.Math.Div(V.Local.funits,V.Local.fWOQty,V.Local.funits)
+								F.Intrinsic.Control.EndIf
+								F.Intrinsic.Math.Round(V.Local.funits.Float,4,V.Local.funits)
+								F.Intrinsic.String.Format(V.Local.funits,"###0.0000",V.Local.sUnits)
+								F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+								F.Intrinsic.Control.If(V.Local.fTemp,>,V.Local.fHrsEst)
+									F.Intrinsic.Math.Sub(V.Local.sUnits.Float,.0001,V.Local.sUnits)
+									F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+'									F.Intrinsic.String.Format(V.Local.fTemp,"###0.0000",V.Local.fTemp)
+									F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+									F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+								F.Intrinsic.Control.Else
+'									F.Intrinsic.String.Format(V.Local.fTemp,"###0.0000",V.Local.fTemp)
+									F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+									F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+								F.Intrinsic.Control.EndIf
+								F.ODBC.conx!rst2.Set!OPERATION(V.Local.sopcode)
+								F.ODBC.conx!rst2.Set!DESCRIPTION(V.Local.sSplitDesc(0))
+								F.ODBC.conx!rst2.Set!UNITS(V.Local.sUnits)
+								F.ODBC.conx!rst2.Set!HOURS_ESTIMATED(V.Local.fHrsEst)
+								F.ODBC.conx!rst2.Set!TIME_ELAPSED(V.Local.fHrsEst)
+								F.ODBC.conx!rst2.Set!SETUP(V.Local.ssetup)
+								F.ODBC.conx!rst2.Set!LEAD_TIME(V.Local.slead)
+								F.ODBC.conx!rst2.Set!UM(V.Local.sum)
+								'set the burden as the srate which is already determined based on LMO type
+								F.ODBC.conx!rst2.set!BURDEN(V.local.srate.Float)
+								'set the code sort oper as the sort code
+								F.ODBC.conx!rst2.Set!CODE_SORT_OPER(V.Local.ssort)
+								F.ODBC.conx!rst2.Set!PROJ_GROUP(V.Local.sgroup)
+								F.ODBC.conx!rst2.Set!WO_INSERT("00")
+								F.ODBC.conx!rst2.Set!UNITS_COMPLETE("0")
+								F.ODBC.conx!rst2.Set!PERCENT_COMPLETE("0")
+								F.ODBC.conx!rst2.Set!UNITS_SCRAP("0")
+								F.ODBC.conx!rst2.Set!UNITS_COMMITTED("0")
+								F.ODBC.conx!rst2.Set!RATE_BURDEN("0")
+								F.ODBC.conx!rst2.Set!HOURS_ACTUAL("0")
+								
+								F.ODBC.Conx!rst2.Update
+
+							F.Intrinsic.Control.EndIf
+							
+						F.Intrinsic.Control.EndIf
+
+					'mark as failed
+					F.Intrinsic.Control.EndIf
+				
+				'close the second connection
+				F.ODBC.conx!rst2.Close
+			F.Intrinsic.Control.Next(V.Local.idescloop)
+	
+			'set the desc boolean to false
+			V.Local.bdesc.Set(False)
+	
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("Select * from JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and SEQ < '{2}'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,"990000",V.Local.sSQL2)
+			F.ODBC.Connection!conx.OpenRecordsetRW("rst2",V.Local.sSQL2)
+			
+			'if there is a job/suffix found append to it
+			F.Intrinsic.Control.If(V.ODBC.conx!rst2.EOF,=,False)
+				F.intrinsic.Control.If(V.Local.slmo,=,"M")
+					F.ODBC.conx!rst2.AddNew
+					F.ODBC.conx!rst2.Set!JOB(V.local.sjob.Trim)
+					F.ODBC.conx!rst2.Set!SUFFIX(V.local.ssuffix.Trim)
+					
+					F.Intrinsic.Control.If(V.Local.sopcode.IsNumeric)
+						F.Intrinsic.Math.Sub(V.Local.sopcode.Long,V.Local.finc,V.Local.sPriorSeq)
+						F.Intrinsic.String.Format(V.Local.sPriorSeq,"000000",V.Local.sPriorSeq)
+						F.Intrinsic.String.Format(V.Local.sopcode,"000000",V.Local.sopcode)		
+						F.Intrinsic.String.Build("Select Top 1 Seq from V_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and Cast(SEQ as Int) < {2} and Cast(SEQ as Int) > {3} Order by Seq",V.Local.sjob.Trim,V.Local.ssuffix.Trim,V.Local.sopcode.Long,V.Local.sPriorSeq.Long,V.Local.ssql)
+						F.ODBC.Connection!Conx.ExecuteAndReturn(V.Local.ssql,V.Local.sRet)
+						F.Intrinsic.Control.If(V.Local.sRet.Trim,=,"")
+							F.Intrinsic.Math.Sub(V.Local.sopcode.Long,1,V.Local.sseq)
+						F.Intrinsic.Control.Else
+							F.Intrinsic.Math.Sub(V.Local.sRet.Long,1,V.Local.sseq)
+						F.Intrinsic.Control.EndIf
+					F.Intrinsic.Control.Else
+						'get the last seq number to add to
+						F.Intrinsic.String.Build("Select MAX(SEQ) as SEQ from V_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and SEQ < '{2}' and LMO <> '{3}' and MAIN_COMMENT <> '{4}'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,"990000","C","Y",V.Local.ssql)
+						F.ODBC.Connection!conx.OpenRecordsetRO("rst",V.Local.sSQL)
+						
+						F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+							V.Local.sseq.set(V.ODBC.conx!rst.FieldValTrim!SEQ)
+						F.Intrinsic.Control.Else
+							V.Local.sseq.Set("0")
+						F.Intrinsic.Control.EndIf
+						
+						F.ODBC.conx!rst.Close
+						'add the increment for the sequence
+						F.Intrinsic.Math.Add(V.Local.sseq,V.Local.finc,V.Local.sseq)
+						F.Intrinsic.Math.Div(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+						F.Intrinsic.Math.Ceiling(V.Local.sseq.Float,V.Local.sseq)
+						F.Intrinsic.Math.Mult(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+					F.Intrinsic.Control.EndIf
+					
+					V.Local.sseq2.Set(V.Local.sseq)
+					F.Intrinsic.String.Format(V.Local.sseq2,"000000",V.Local.sseq2)
+					F.ODBC.conx!rst2.Set!SEQ(V.Local.sseq2)
+					F.ODBC.conx!rst2.Set!LMO(V.Local.slmo)
+		
+				
+					F.ODBC.conx!rst2.Set!PART(V.Local.spart)
+					V.Local.fHrsEst.Set(V.Local.funits)
+'					F.Intrinsic.Math.Sub(V.Local.funits,V.Local.ssetup.Float,V.Local.funits)
+					F.Intrinsic.Control.If(V.Local.fWOQty,>,0)
+						F.Intrinsic.Math.Div(V.Local.funits,V.Local.fWOQty,V.Local.funits)
+					F.Intrinsic.Control.EndIf
+					F.Intrinsic.Math.Round(V.Local.funits.Float,4,V.Local.funits)
+					F.Intrinsic.String.Format(V.Local.funits,"###0.0000",V.Local.sUnits)
+					F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+					F.Intrinsic.Control.If(V.Local.fTemp,>,V.Local.fHrsEst)
+						F.Intrinsic.Math.Sub(V.Local.sUnits.Float,.0001,V.Local.sUnits)
+						F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+'						F.Intrinsic.String.Format(V.Local.fTemp,"###0.0000",V.Local.fTemp)
+						F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+						F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+					F.Intrinsic.Control.Else
+'						F.Intrinsic.String.Format(V.Local.fTemp,"###0.0000",V.Local.fTemp)
+						F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+						F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+					F.Intrinsic.Control.EndIf
+					'append the values from those found in the excel spreadsheet to the job_operations table
+					F.ODBC.conx!rst2.Set!OPERATION(V.Local.sopcode)
+					F.ODBC.conx!rst2.Set!DESCRIPTION(V.Local.sdesc)
+					F.ODBC.conx!rst2.Set!UNITS(V.Local.sUnits)
+					F.ODBC.conx!rst2.Set!HOURS_ESTIMATED(V.Local.fHrsEst)
+					F.ODBC.conx!rst2.Set!TIME_ELAPSED(V.Local.fHrsEst)
+					F.ODBC.conx!rst2.Set!SETUP(V.Local.ssetup)
+					F.ODBC.conx!rst2.Set!LEAD_TIME(V.Local.slead)
+					F.ODBC.conx!rst2.Set!UM(V.Local.sum)
+					'set the burden as the srate which is already determined based on LMO type
+					F.ODBC.conx!rst2.set!BURDEN(V.local.srate.Float)
+					'set the code sort oper as the sort code
+					F.ODBC.conx!rst2.Set!CODE_SORT_OPER(V.Local.ssort)
+					F.ODBC.conx!rst2.Set!PROJ_GROUP(V.Local.sgroup)
+					F.ODBC.conx!rst2.Set!WO_INSERT("00")
+					F.ODBC.conx!rst2.Set!UNITS_COMPLETE("0")
+					F.ODBC.conx!rst2.Set!PERCENT_COMPLETE("0")
+					F.ODBC.conx!rst2.Set!UNITS_SCRAP("0")
+					F.ODBC.conx!rst2.Set!UNITS_COMMITTED("0")
+					F.ODBC.conx!rst2.Set!RATE_BURDEN("0")
+					F.ODBC.conx!rst2.Set!HOURS_ACTUAL("0")
+					F.ODBC.conx!rst2.Update
+
+				F.Intrinsic.Control.EndIf
+				
+			'if there is no job/suffix that match do nothing as we are only appending
+			F.Intrinsic.Control.Else
+				F.intrinsic.Control.If(V.Local.slmo,=,"M")
+					F.ODBC.conx!rst2.AddNew
+					F.ODBC.conx!rst2.Set!JOB(V.local.sjob.Trim)
+					F.ODBC.conx!rst2.Set!SUFFIX(V.local.ssuffix.Trim)
+					
+					F.Intrinsic.Control.If(V.Local.sopcode.IsNumeric)
+						F.Intrinsic.Math.Sub(V.Local.sopcode.Long,1,V.Local.sseq)
+						F.Intrinsic.String.Format(V.Local.sopcode,"000000",V.Local.sopcode)
+					F.Intrinsic.Control.Else
+						'get the last seq number to add to
+						F.Intrinsic.String.Build("Select MAX(SEQ) as SEQ from V_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and SEQ < '{2}' and LMO <> '{3}' and MAIN_COMMENT <> '{4}'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,"990000","C","Y",V.Local.ssql)
+						F.ODBC.Connection!conx.OpenRecordsetRO("rst",V.Local.sSQL)
+						
+						F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+							V.Local.sseq.set(V.ODBC.conx!rst.FieldValTrim!SEQ)
+						F.Intrinsic.Control.Else
+							V.Local.sseq.Set("0")
+						F.Intrinsic.Control.EndIf
+						
+						F.ODBC.conx!rst.Close
+						
+						'add the increment for the sequence
+						F.Intrinsic.Math.Add(V.Local.sseq,V.Local.finc,V.Local.sseq)
+						F.Intrinsic.Math.Div(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+						F.Intrinsic.Math.Ceiling(V.Local.sseq.Float,V.Local.sseq)
+						F.Intrinsic.Math.Mult(V.Local.sseq.Long,V.Local.finc,V.Local.sseq)
+					F.Intrinsic.Control.EndIf
+					
+					V.Local.sseq2.Set(V.Local.sseq)
+					F.Intrinsic.String.Format(V.Local.sseq2,"000000",V.Local.sseq2)
+					F.ODBC.conx!rst2.Set!SEQ(V.Local.sseq2)
+					F.ODBC.conx!rst2.Set!LMO(V.Local.slmo)
+		
+				
+					F.ODBC.conx!rst2.Set!PART(V.Local.spart)
+					V.Local.fHrsEst.Set(V.Local.funits)
+'					F.Intrinsic.Math.Sub(V.Local.funits,V.Local.ssetup.Float,V.Local.funits)
+					F.Intrinsic.Control.If(V.Local.fWOQty,>,0)
+						F.Intrinsic.Math.Div(V.Local.funits,V.Local.fWOQty,V.Local.funits)
+					F.Intrinsic.Control.EndIf
+					F.Intrinsic.Math.Round(V.Local.funits.Float,4,V.Local.funits)
+					F.Intrinsic.String.Format(V.Local.funits,"###0.0000",V.Local.sUnits)
+					F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+					F.Intrinsic.Control.If(V.Local.fTemp,>,V.Local.fHrsEst)
+						F.Intrinsic.Math.Sub(V.Local.sUnits.Float,.0001,V.Local.sUnits)
+						F.Intrinsic.Math.Mult(V.Local.sUnits.Float,V.Local.fWOQty,V.Local.fTemp)
+'						F.Intrinsic.String.Format(V.Local.fTemp,"####0.0000",V.Local.fTemp)
+						F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+						F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+					F.Intrinsic.Control.Else
+'						F.Intrinsic.String.Format(V.Local.fTemp,"####0.0000",V.Local.fTemp)
+						F.Intrinsic.Math.Sub(V.Local.fHrsEst,V.Local.fTemp,V.Local.ssetup)
+						F.Intrinsic.Math.Round(V.Local.ssetup.Float,4,V.Local.ssetup)
+					F.Intrinsic.Control.EndIf
+					'append the values from those found in the excel spreadsheet to the job_operations table
+					F.ODBC.conx!rst2.Set!OPERATION(V.Local.sopcode)
+					F.ODBC.conx!rst2.Set!DESCRIPTION(V.Local.sdesc)
+					F.ODBC.conx!rst2.Set!UNITS(V.Local.sUnits)
+					F.ODBC.conx!rst2.Set!HOURS_ESTIMATED(V.Local.fHrsEst)
+					F.ODBC.conx!rst2.Set!TIME_ELAPSED(V.Local.fHrsEst)
+					F.ODBC.conx!rst2.Set!SETUP(V.Local.ssetup)
+					F.ODBC.conx!rst2.Set!LEAD_TIME(V.Local.slead)
+					F.ODBC.conx!rst2.Set!UM(V.Local.sum)
+					'set the burden as the srate which is already determined based on LMO type
+					F.ODBC.conx!rst2.set!BURDEN(V.local.srate.Float)
+					'set the code sort oper as the sort code
+					F.ODBC.conx!rst2.Set!CODE_SORT_OPER(V.Local.ssort)
+					F.ODBC.conx!rst2.Set!PROJ_GROUP(V.Local.sgroup)
+					F.ODBC.conx!rst2.Set!WO_INSERT("00")
+					F.ODBC.conx!rst2.Set!UNITS_COMPLETE("0")
+					F.ODBC.conx!rst2.Set!PERCENT_COMPLETE("0")
+					F.ODBC.conx!rst2.Set!UNITS_SCRAP("0")
+					F.ODBC.conx!rst2.Set!UNITS_COMMITTED("0")
+					F.ODBC.conx!rst2.Set!RATE_BURDEN("0")
+					F.ODBC.conx!rst2.Set!HOURS_ACTUAL("0")
+					F.ODBC.conx!rst2.Update
+				F.Intrinsic.Control.EndIf
+				
+			F.Intrinsic.Control.EndIf
+			
+			'close the second connection
+			F.ODBC.Conx!rst2.Close
+	
+		F.Intrinsic.Control.EndIf
+		
+		'set the desc boolean to false
+		V.Local.bdesc.Set(False)
+	
+		'clear out the custom table
+		F.Intrinsic.String.Build("DELETE from JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and LMO = '{2}' and DESCRIPTION = '{3}'",V.Local.sjob.Trim,V.Local.ssuffix.Trim,"C","",V.Local.ssql)
+		F.ODBC.Connection!conX.Execute(V.Local.ssql)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.irow2)
+
+'show the user that th upload has completed
+'F.Intrinsic.UI.Msgbox("Upload Complete")
+
+F.Intrinsic.Control.CallSub(Unload)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Upload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_6302_WO_OP_Upload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Upload.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_3753_WO_OP_Upload$}$WAW$}$4/14/2016
+${$5$}$2.0.0.0$}$2
+${$6$}$rking$}$20240306203912153$}$QNdZLVy4bWuiWa9jh1ZTiPY99LydZoBN27Vbj9LSsePxVCf5yrtLUR09IHniMhBUS7pPt7LfRQk=
+Program.Sub.Comments.End
+
